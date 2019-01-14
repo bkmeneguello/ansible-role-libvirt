@@ -1,0 +1,18 @@
+---
+dependencies: []
+
+galaxy_info:
+  author: bkmeneguello
+  role_name: libvirt
+  description: LibVirt Role
+  license: "license (MIT)"
+  min_ansible_version: 2.4
+  galaxy_tags:
+    - virtualization
+    - libvirt
+    - system
+    - cloud
+    - kvm
+    - hvm
+    - xen
+    - vm
