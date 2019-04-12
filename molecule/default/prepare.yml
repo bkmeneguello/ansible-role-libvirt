@@ -1,0 +1,54 @@
+---
+- name: Prepare
+  hosts: all
+  gather_facts: false
+  tasks:
+    - package:
+        name:
+          - libvirt-clients
+          - libvirt-daemon
+          - libvirt-daemon-system
+          - python-libvirt
+          - python-enum34
+          - gnutls-bin
+      become: true
+    - name: Stat /etc/pki/CA/cacert.pem
+      stat:
+        path: /etc/pki/CA/cacert.pem
+      register: cacert
+    - name: Generate /etc/pki/CA/cacert.pem
+      block:
+        - tempfile:
+            state: directory
+          register: tempdir
+        - copy:
+            content: |
+              cn ACME Organization, Inc.
+              ca
+              cert_signing_key
+            dest: '{{ tempdir.path }}/cert.cfg'
+        - shell: 'certtool --generate-privkey > cakey.pem'
+          args:
+            chdir: '{{ tempdir.path }}'
+            creates: '{{ tempdir.path }}/cakey.pem'
+        - file:
+            state: directory
+            path: /etc/pki/CA
+            recurse: true
+          become: true
+        - command: 'certtool --generate-self-signed --load-privkey cakey.pem --template cert.cfg --outfile /etc/pki/CA/cacert.pem'
+          args:
+            chdir: '{{ tempdir.path }}'
+            creates: '/etc/pki/CA/cacert.pem'
+          become: true
+      when: not cacert.stat.exists
+    - name: Start libvirtd
+      command: /etc/init.d/libvirtd start
+      become: true
+    - name: Start virtlogd
+      command: /etc/init.d/virtlogd start
+      become: true
+    - file:
+        path: /dev/kvm
+        mode: 0666
+      become: true

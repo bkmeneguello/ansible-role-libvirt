@@ -1,0 +1,21 @@
+---
+- name: Converge
+  hosts: all
+  gather_facts: false
+  roles:
+    - role: bkmeneguello.libvirt
+  tasks:
+    - name: Create domain
+      libvirt_domain:
+        uri: qemu:///system
+        state: created
+        domain:
+          _type: kvm
+          name: sample
+          memory:
+            _unit: G
+            __value: 1
+          os:
+            type:
+              _arch: x86_64
+              __value: hvm
