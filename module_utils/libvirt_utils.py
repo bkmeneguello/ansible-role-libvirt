@@ -263,7 +263,7 @@ def compare(e1, e2, path):
         if len(e1) != len(e2):
             return False, '.'.join(path), 'element count differ'
         for i in range(len(e1)):
-            eq, p, m = compare(e1[i], e2[i], path=path + [i])
+            eq, p, m = compare(e1[i], e2[i], path=path + [str(i)])
             if not eq:
                 return False, p, m
     elif str(e1) != str(e2):
