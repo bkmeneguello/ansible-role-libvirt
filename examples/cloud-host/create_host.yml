@@ -1,0 +1,131 @@
+---
+- hosts: localhost
+  gather_facts: false
+  roles:
+    - bkmeneguello.libvirt
+  vars:
+    libvirt_uri: qemu:///system
+    password: centos
+    domain_name: centos7.0
+    config_vol_pool: default
+    root_vol_image: '{{ playbook_dir }}/CentOS-7-x86_64-GenericCloud.qcow2'
+    root_vol_resize: 8 GB
+    root_vol_pool: default
+    network: default
+  tasks:
+    - get_url:
+        url: https://cloud.centos.org/centos/7/images/CentOS-7-x86_64-GenericCloud.qcow2
+        dest: '{{ root_vol_image }}'
+    - libvirt_volume_facts:
+        uri: '{{ libvirt_uri }}'
+        pool: '{{ config_vol_pool }}'
+        name: '{{ domain_name}}-cidata'
+      register: cidata
+    - name: 'Create {{ domain_name }} cidata'
+      block:
+        - tempfile:
+            state: directory
+          register: tempdir
+        - copy:
+            content: |
+              #cloud-config
+              password: {{ password }}
+              chpasswd: {'expire': false}
+              ssh_pwauth: true
+            dest: '{{ tempdir.path }}/user-data'
+        - package:
+            name: cloud-image-utils
+        - command: 'cloud-localds -f iso -m local cidata user-data'
+          args:
+            chdir: '{{ tempdir.path }}'
+            creates: '{{ tempdir.path }}/cidata'
+        - stat:
+            path: '{{ tempdir.path }}/cidata'
+          register: cidata_info
+        - libvirt_volume:
+            uri: '{{ libvirt_uri }}'
+            state: present
+            pool: '{{ config_vol_pool }}'
+            upload: '{{ tempdir.path }}/cidata'
+            volume:
+              name: '{{ domain_name }}-cidata'
+              format:
+                _type: raw
+              capacity:
+                _unit: bytes
+                __value: '{{ cidata_info.stat.size }}'
+      when: not cidata.exists
+    - name: 'Create {{ domain_name }} disk'
+      libvirt_volume:
+        uri: '{{ libvirt_uri }}'
+        state: present
+        pool: '{{ root_vol_pool }}'
+        upload: '{{ root_vol_image }}'
+        resize: '{{ root_vol_resize | human_to_bytes | default(omit) }}'
+        volume:
+          name: '{{ domain_name }}-disk'
+          format:
+            _type: qcow2
+          capacity:
+            _unit: G
+            __value: 2
+    - name: 'Create {{ domain_name }} domain'
+      libvirt_domain:
+        uri: '{{ libvirt_uri }}'
+        state: defined
+        persistent: true
+        domain:
+          _type: kvm
+          name: '{{ domain_name }}'
+          memory:
+            _unit: G
+            __value: 1
+          vcpu: 1
+          os:
+            type:
+              _arch: x86_64
+              _machine: pc
+              __value: hvm
+          devices:
+            emulator: /usr/bin/kvm
+            disk:
+              - _type: volume
+                _device: disk
+                driver:
+                  _name: qemu
+                  _type: qcow2
+                source:
+                  _pool: '{{ root_vol_pool }}'
+                  _volume: '{{ domain_name }}-disk'
+                target:
+                  _dev: vda
+                  _bus: virtio
+              - _type: volume
+                _device: cdrom
+                driver:
+                  _name: qemu
+                source:
+                  _pool: '{{ config_vol_pool }}'
+                  _volume: '{{ domain_name }}-cidata'
+                target:
+                  _dev: hda
+                  _bus: ide
+                readonly: true
+            interface:
+              - _type: network
+                source:
+                  _network: '{{ network }}'
+                model:
+                  _type: virtio
+            graphics:
+              _type: spice
+              _autoport: 'yes'
+            channel:
+              - _type: unix
+                source:
+                  _mode: bind
+                  _path: /var/lib/libvirt/qemu/f16x86_64.agent
+                target:
+                  _type: virtio
+                  _name: org.qemu.guest_agent.0
+                  _state: connected
