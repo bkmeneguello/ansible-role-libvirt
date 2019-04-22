@@ -1,0 +1,46 @@
+---
+- hosts: localhost
+  gather_facts: false
+  roles:
+    - bkmeneguello.libvirt
+  tasks:
+    - libvirt_domain:
+        uri: qemu:///system
+        state: defined
+        domain:
+          _type: kvm
+          name: sample
+          memory:
+            _unit: G
+            __value: 1
+          os:
+            type:
+              _arch: x86_64
+              __value: hvm
+    - libvirt_volume:
+        uri: qemu:///system
+        pool: default
+        volume:
+          name: sample-vol
+          format:
+            _type: raw
+          capacity:
+            _unit: M
+            __value: 10
+    - libvirt_domain_device:
+        uri: qemu:///system
+        domain: sample
+        type: disk
+        device:
+          _type: volume
+          _device: disk
+          alias:
+            _name: ua-sample-vol
+          driver:
+            _name: qemu
+          source:
+            _pool: default
+            _volume: sample-vol
+          target:
+            _dev: vda
+            _bus: virtio
