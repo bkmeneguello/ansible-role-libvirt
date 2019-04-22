@@ -171,6 +171,7 @@ def run_module():
         name=dict(type='str'),
         domain=dict(type='dict'),
         xml=dict(type='str'),
+        update=dict(type='bool', default=False),
         persistent=dict(type='bool', default=True),
         destroy_graceful=dict(type='bool', default=True),
         undefine_destroy=dict(type='bool', default=True),
@@ -214,6 +215,7 @@ def run_module():
     name = module.params['name'] or domain['name']
     if not name.strip():
         module.fail_json(msg='missing domain name', **result)
+    update = module.params['update']
     persistent = module.params['persistent']
     if state == STATE_DEFINED and not persistent:
         module.fail_json(msg='persistent cannot be false when state is defined')
@@ -245,7 +247,7 @@ def run_module():
             result['changed'] = True
             vir_dom = define_domain(conn, domain)
             result.update(util.describe_domain(vir_dom))
-        else:
+        elif update:
             changed, path, cause = domain_has_changed(vir_dom, domain)
             if changed:
                 result['changed'] = True
@@ -269,7 +271,7 @@ def run_module():
             else:
                 vir_dom = create_domain(conn, domain)
             result.update(util.describe_domain(vir_dom))
-        else:
+        elif update:
             if vir_dom.isActive():
                 # TODO: detect changes
                 changed, path, cause = domain_has_changed(vir_dom, domain, active=True)
